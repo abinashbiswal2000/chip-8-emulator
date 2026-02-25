@@ -14,11 +14,14 @@ struct chip8CPU {
     uint8_t  sp;        // Stack pointer
 };
 
+// Font Set
+extern uint8_t fontset[80];
+
 // Function Declarations
 
 void initializeCpu(struct chip8CPU *cpuPtr);
 int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr);
-void fetch ();
+uint16_t fetch (struct chip8CPU *cpuPtr);
 void decodeAndExecute ();
 
 #endif

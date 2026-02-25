@@ -6,9 +6,6 @@
 #include <stdint.h>
 
 
-
-
-
 void initializeCpu(struct chip8CPU *cpuPtr) {
     /*
     1 - Set every byte in the ram to zero.
@@ -35,10 +32,6 @@ void initializeCpu(struct chip8CPU *cpuPtr) {
     }
 
 };
-
-
-
-
 
 
 int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr) {
@@ -86,11 +79,26 @@ int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr) {
     }
 };
 
-void fetch () {};
+
+uint16_t fetch (struct chip8CPU *cpuPtr) {
+    
+    // Chip 8 is big endian
+    // Size of an instruction in chip 8 is 2 bytes = 16 bits
+    
+    uint8_t leftPart = cpuPtr->ram[cpuPtr->pc];
+    uint8_t rightPart = cpuPtr->ram[cpuPtr->pc + 1];
+    uint16_t instruction = (leftPart << 8) | rightPart;
+
+    cpuPtr->pc += 2;
+    
+    return instruction;
+};
+
 
 void decodeAndExecute () {};
 
-// ---
+
+// ------------------------------------------------------------------------
 
 
 // Font Set
