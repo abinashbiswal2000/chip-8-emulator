@@ -4,18 +4,6 @@
 // Header files
 #include <stdint.h>
 
-
-
-// Function Declarations
-
-int loadGameInRam (int fd, struct chip8CPU *cpu);
-void fetch ();
-void decodeAndExecute ();
-
-
-
-// Structs
-
 // CPU Class
 struct chip8CPU {
     uint8_t ram[4096];  // 4KB memory
@@ -26,5 +14,11 @@ struct chip8CPU {
     uint8_t  sp;        // Stack pointer
 };
 
+// Function Declarations
+
+void initializeCpu(struct chip8CPU *cpuPtr);
+int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr);
+void fetch ();
+void decodeAndExecute ();
 
 #endif

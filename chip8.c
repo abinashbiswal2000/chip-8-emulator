@@ -1,14 +1,89 @@
 #include "chip8.h"
+
+#include <stdio.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdint.h>
+
+
+
+
+
+void initializeCpu(struct chip8CPU *cpuPtr) {
+    /*
+    1 - Set every byte in the ram to zero.
+    Why?
+    To get rid of all garbage values
+    Why ?
+    The game developers wrote their ROMs assuming they were running on a CHIP-8 machine that boots into a known, clean state. They never bothered writing code to explicitly zero out memory before using it, because the hardware already guaranteed that. So when you emulate that machine, you have to uphold that same guarantee — otherwise you're giving the ROM a different environment than it was written for, and we can expect undefined behaviour.
+    
+    2 - Set Pc to 0x200 (512)
+    Why?
+    Because all the instructions are stored from the location
+
+    3 - Load font set in the beginning of the ram.
+    */
+
+    
+    struct chip8CPU temp = {0};
+    *cpuPtr = temp;
+
+    cpuPtr->pc = 0x200;
+
+    for (int i = 0; i < 80; i++) {
+        cpuPtr->ram[i] = fontset[i];
+    }
+
+};
 
 
 
 
 
 
-int loadGameInRam (int fd, struct chip8CPU *cpu) {
+int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr) {
 
+    int fileDescriptor = open(fileName, O_RDONLY);
+
+    if (fileDescriptor < 0) {
+        printf("File Not Found\n");
+        return 0;
+    }
+    
+    uint8_t buffer[1000];
+    ssize_t bytesRead;
+    
+    int totalBytesRead = 0;
+    int ramIndex = 512;
+
+    while (1) {
+
+        bytesRead = read(fileDescriptor, buffer, 1000);
+
+        if (bytesRead == 0) {
+            printf("Game file read successfully\ntotalBytesRead = %d\n", totalBytesRead);
+            return 1;
+            // file reading completed
+        } else if (bytesRead < 0) {
+            printf("Input device disconnected\n");
+            return 0;
+            // Input device disconnected
+        }
+        
+        totalBytesRead += bytesRead;
+
+        if (totalBytesRead > 3584) {
+            printf("Game file too large\n");
+            return 0;
+            // Game file too large
+        }
+
+        for (int i = 0; i < bytesRead; i++) {
+            cpuPtr->ram[ramIndex] = buffer[i];
+            ramIndex += 1;
+        }
+
+    }
 };
 
 void fetch () {};
