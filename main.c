@@ -25,8 +25,22 @@ int main (int argc, char *argv[]) {
     
     // ( Fetch - Decode - Execute ) cycle
     while (1) {
+
+        printf("pc before fetch = %02X %02X\n", cpu.ram[cpu.pc], cpu.ram[cpu.pc+1]);
         instruction = fetch(cpuPtr);
+        printf("pc after fetch  = %02X %02X\n", cpu.ram[cpu.pc], cpu.ram[cpu.pc+1]);
         decodeInstruction(decodedInstructionPtr, instruction);
+
+        printf("Opcode = %01X \n", decodedInstruction.opcode);
+        printf("     x = %01X \n", decodedInstruction.x);
+        printf("     y = %01X \n", decodedInstruction.y);
+        printf("     n = %01X \n", decodedInstruction.n);
+        printf("    kk = %02X \n", decodedInstruction.kk);
+        printf("   nnn = %03X \n", decodedInstruction.nnn);
+
+        break;
+
+        if (cpuPtr->pc >= 4096) break; 
     }
     
     return 0;
