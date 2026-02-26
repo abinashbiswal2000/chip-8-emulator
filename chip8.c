@@ -105,7 +105,209 @@ void decodeInstruction (struct decodedInstructionStruct *decodedInstructionStruc
     decodedInstructionStructPtr->n      = (instruction & 0x000F);
     decodedInstructionStructPtr->kk     = (instruction & 0x00FF);
     decodedInstructionStructPtr->nnn    = (instruction & 0x0FFF);
-}
+};
+
+
+int execute(struct decodedInstructionStruct *dPtr, struct chip8CPU *cPtr) {
+    switch (dPtr->opcode) {
+        case (0x0): {
+            switch (dPtr->kk) {
+                case (0xE0): {
+                    // CLS - Clear the display
+                    break;
+                }
+                case (0xEE): {
+                    // RET - Return from a subroutine
+                    cPtr->pc = cPtr->stack[cPtr->sp];
+                    cPtr->sp -= 1;
+                    break;
+                }
+                default: {
+                    break;
+                }
+            }
+            break;
+        }
+        
+        case (0x1): {
+            // 1nnn - JP addr -> Jump to location nnn.
+            // The interpreter sets the program counter to nnn.
+            cPtr->pc = dPtr->nnn;
+            break;
+        }
+
+        case (0x2): {
+            // 2nnn - CALL addr -> Call subroutine at nnn. 
+            // 1. The interpreter increments the stack pointer, 
+            // 2. Then puts the current PC on the top of the stack. 
+            // 3. The PC is then set to nnn.
+
+            if (cPtr->sp == 15) {
+                printf("Stack Overflow\n");
+                return 0;
+            }
+
+            cPtr->sp += 1;
+            cPtr->stack[cPtr->sp] = cPtr->pc;
+            cPtr->pc = dPtr->nnn;
+            break;
+        }
+
+        case (0x3): {
+            // 3xkk - SE Vx, byte -> Skip next instruction if Vx = kk.
+            // The interpreter compares register Vx to kk, and if they are equal, increments the program counter by 2.
+            if (cPtr->V[dPtr->x] == dPtr->kk) {
+                cPtr->pc += 2;
+            }
+            break;
+        }
+
+        case (0x4): {
+            // 4xkk - SNE Vx, byte -> Skip next instruction if Vx != kk.
+            // The interpreter compares register Vx to kk, and if they are not equal, increments the program counter by 2.
+            if (cPtr->V[dPtr->x] != dPtr->kk) {
+                cPtr->pc += 2;
+            }
+            break;
+        }
+
+        case (0x5): {
+            // 5xy0 - SE Vx, Vy -> Skip next instruction if Vx = Vy.
+            // The interpreter compares register Vx to register Vy, and if they are equal, increments the program counter by 2.
+            if (cPtr->V[dPtr->x] == cPtr->V[dPtr->y]) {
+                cPtr->pc += 2;
+            }
+            break;
+        }
+
+        case (0x6): {
+            // 6xkk - LD Vx, byte -> Set Vx = kk.
+            // The interpreter puts the value kk into register Vx.
+            cPtr->V[dPtr->x] = dPtr->kk;
+            break;
+        }
+
+        case (0x7): {
+            // 7xkk - ADD Vx, byte -> Set Vx = Vx + kk.
+            // Adds the value kk to the value of register Vx, then stores the result in Vx.
+            cPtr->V[dPtr->x] += dPtr->kk;
+            break;
+        }
+
+        case (0x8): {
+            switch (dPtr->n) {
+                case (0x0): {
+                    // 8xy0 - LD Vx, Vy -> Set Vx = Vy.
+                    // Stores the value of register Vy in register Vx.
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->y];
+                    break;
+                }
+                case (0x1): {
+                    // Set Vx = Vx OR Vy.
+                    // Performs a bitwise OR on the values of Vx and Vy, then stores the result in Vx. 
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->x] | cPtr->V[dPtr->y];
+                    break;
+                }
+                case (0x2): {
+                    // 8xy2 - AND Vx, VySet Vx = Vx AND Vy.
+                    // Performs a bitwise AND on the values of Vx and Vy, then stores the result in Vx.
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->x] & cPtr->V[dPtr->y];
+                    break;
+                }
+                case (0x3): {
+                    // 8xy3 - XOR Vx, Vy
+                    // Set Vx = Vx XOR Vy.
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->x] ^ cPtr->V[dPtr->y];
+                    break;
+                }
+                case (0x4): {
+                    // 8xy4 - ADD Vx, Vy -> Set Vx = Vx + Vy, set VF = carry.
+                    // The values of Vx and Vy are added together. If the result is greater than 8 bits (i.e., > 255,) VF is set to 1, otherwise 0. Only the lowest 8 bits of the result are kept, and stored in Vx.
+                    uint16_t sum = cPtr->V[dPtr->x] + cPtr->V[dPtr->y];
+                    uint8_t carry = sum > 255 ? 1 : 0;
+                    cPtr->V[dPtr->x] = sum & 0xFF;
+                    cPtr->V[0xF] = carry;
+                    break;
+                }
+                case (0x5): {
+                    // 8xy5 - SUB Vx, Vy -> Set Vx = Vx - Vy, set VF = NOT borrow.
+                    // If Vx > Vy, then VF is set to 1, otherwise 0. Then Vy is subtracted from Vx, and the results stored in Vx.
+                    uint8_t carry = cPtr->V[dPtr->x] >= cPtr->V[dPtr->y] ? 1 : 0;
+                    cPtr->V[dPtr->x] -= cPtr->V[dPtr->y];
+                    cPtr->V[0xF] = carry;  
+
+                    break;
+                }
+                case (0x6): {
+                    // 8xy6 - SHR Vx {, Vy} -> Set Vx = Vx SHR 1.
+                    // If the least-significant bit of Vx is 1, then VF is set to 1, otherwise 0. Then Vx is divided by 2.
+                    uint8_t lsb = cPtr->V[dPtr->x] & 0x1;
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->x] / 2;
+                    cPtr->V[0xF] = lsb;                    
+                    break;
+                }
+                case (0x7): {
+                    // 8xy7 - SUBN Vx, Vy -> Set Vx = Vy - Vx, set VF = NOT borrow.
+                    // If Vy > Vx, then VF is set to 1, otherwise 0. Then Vx is subtracted from Vy, and the results stored in Vx.
+                    uint8_t carry = cPtr->V[dPtr->y] > cPtr->V[dPtr->x] ? 1 : 0;
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->y] - cPtr->V[dPtr->x];
+                    cPtr->V[0xF] = carry;
+                    break;
+                }
+                case (0xE): {
+                    // Set Vx = Vx SHL 1.
+                    // If the most-significant bit of Vx is 1, then VF is set to 1, otherwise to 0. Then Vx is multiplied by 2.
+                    uint8_t msb = (cPtr->V[dPtr->x] >> 7) & 0x1;
+                    cPtr->V[dPtr->x] = cPtr->V[dPtr->x] * 2;
+                    cPtr->V[0xF] = msb;  
+                    break;
+                }
+                
+                default: {
+                    break;
+                }
+            }
+            break;
+        }
+
+        case (0x9): {
+            // Skip next instruction if Vx != Vy.
+            // The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
+            if (cPtr->V[dPtr->x] != cPtr->V[dPtr->x]) {
+                cPtr->pc += 2;
+            }
+            break;
+        }
+
+        case (0xA): {
+            // Annn - LD I, addr
+            // Set I = nnn.The value of register I is set to nnn.
+            cPtr->I = dPtr->nnn;
+
+            break;
+        }
+
+        case (0xB):
+            break;
+
+        case (0xC):
+            break;
+
+        case (0xD):
+            break;
+
+        case (0xE):
+            break;
+
+        case (0xF):
+            break;
+
+        default:
+            break;
+        
+    }
+    return 1;
+};
 
 
 // ------------------------------------------------------------------------

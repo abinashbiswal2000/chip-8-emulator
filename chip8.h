@@ -33,6 +33,6 @@ void initializeCpu(struct chip8CPU *cpuPtr);
 int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr);
 uint16_t fetch (struct chip8CPU *cpuPtr);
 void decodeInstruction (struct decodedInstructionStruct *decodedInstructionStructPtr, uint16_t instruction);
-void decodeAndExecute ();
+int execute(struct decodedInstructionStruct *decodedInstructionPtr, struct chip8CPU *cpuPtr);
 
 #endif
