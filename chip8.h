@@ -14,6 +14,16 @@ struct chip8CPU {
     uint8_t  sp;        // Stack pointer
 };
 
+// Decoded Instructions Class
+struct decodedInstructionStruct {
+    uint16_t opcode;
+    uint16_t x;
+    uint16_t y;
+    uint16_t n;
+    uint16_t kk;
+    uint16_t nnn;
+};
+
 // Font Set
 extern uint8_t fontset[80];
 
@@ -22,6 +32,7 @@ extern uint8_t fontset[80];
 void initializeCpu(struct chip8CPU *cpuPtr);
 int loadGameInRam (char *fileName, struct chip8CPU *cpuPtr);
 uint16_t fetch (struct chip8CPU *cpuPtr);
+void decodeInstruction (struct decodedInstructionStruct *decodedInstructionStructPtr, uint16_t instruction);
 void decodeAndExecute ();
 
 #endif

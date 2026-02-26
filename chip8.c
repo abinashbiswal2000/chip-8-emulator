@@ -98,6 +98,16 @@ uint16_t fetch (struct chip8CPU *cpuPtr) {
 void decodeAndExecute () {};
 
 
+void decodeInstruction (struct decodedInstructionStruct *decodedInstructionStructPtr, uint16_t instruction) {
+    decodedInstructionStructPtr->opcode = (instruction & 0xF000) >> 12;
+    decodedInstructionStructPtr->x      = (instruction & 0x0F00) >> 8;
+    decodedInstructionStructPtr->y      = (instruction & 0x00F0) >> 4;
+    decodedInstructionStructPtr->n      = (instruction & 0x000F);
+    decodedInstructionStructPtr->kk     = (instruction & 0x00FF);
+    decodedInstructionStructPtr->nnn    = (instruction & 0x0FFF);
+}
+
+
 // ------------------------------------------------------------------------
 
 
