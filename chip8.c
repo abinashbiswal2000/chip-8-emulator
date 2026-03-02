@@ -4,10 +4,17 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <time.h>
+#include <SDL2/SDL.h>
 
 
 void initializeCpu(struct chip8CPU *cpuPtr) {
     /*
+    0 - srand(time(NULL));
+    Why?
+    Becuase it is used to generate a different pattern of generating random numbers as required in instruction cxkk.
+
     1 - Set every byte in the ram to zero.
     Why?
     To get rid of all garbage values
@@ -21,6 +28,7 @@ void initializeCpu(struct chip8CPU *cpuPtr) {
     3 - Load font set in the beginning of the ram.
     */
 
+    srand(time(NULL));
     
     struct chip8CPU temp = {0};
     *cpuPtr = temp;
@@ -95,8 +103,6 @@ uint16_t fetch (struct chip8CPU *cpuPtr) {
 };
 
 
-void decodeAndExecute () {};
-
 
 void decodeInstruction (struct decodedInstructionStruct *decodedInstructionStructPtr, uint16_t instruction) {
     decodedInstructionStructPtr->opcode = (instruction & 0xF000) >> 12;
@@ -118,8 +124,12 @@ int execute(struct decodedInstructionStruct *dPtr, struct chip8CPU *cPtr) {
                 }
                 case (0xEE): {
                     // RET - Return from a subroutine
-                    cPtr->pc = cPtr->stack[cPtr->sp];
+                    if (cPtr->sp == 0) {
+                        printf("Stack Underflow\n");
+                        return 0;
+                    }                    
                     cPtr->sp -= 1;
+                    cPtr->pc = cPtr->stack[cPtr->sp];
                     break;
                 }
                 default: {
@@ -147,8 +157,8 @@ int execute(struct decodedInstructionStruct *dPtr, struct chip8CPU *cPtr) {
                 return 0;
             }
 
-            cPtr->sp += 1;
             cPtr->stack[cPtr->sp] = cPtr->pc;
+            cPtr->sp += 1;
             cPtr->pc = dPtr->nnn;
             break;
         }
@@ -273,7 +283,7 @@ int execute(struct decodedInstructionStruct *dPtr, struct chip8CPU *cPtr) {
         case (0x9): {
             // Skip next instruction if Vx != Vy.
             // The values of Vx and Vy are compared, and if they are not equal, the program counter is increased by 2.
-            if (cPtr->V[dPtr->x] != cPtr->V[dPtr->x]) {
+            if (cPtr->V[dPtr->x] != cPtr->V[dPtr->y]) {
                 cPtr->pc += 2;
             }
             break;
@@ -283,24 +293,188 @@ int execute(struct decodedInstructionStruct *dPtr, struct chip8CPU *cPtr) {
             // Annn - LD I, addr
             // Set I = nnn.The value of register I is set to nnn.
             cPtr->I = dPtr->nnn;
+            break;
+        }
+
+        case (0xB): {
+            // Bnnn - JP V0, addr -> Jump to location nnn + V0.
+            // The program counter is set to nnn plus the value of V0.
+            cPtr->pc = dPtr->nnn + cPtr->V[0x0];
 
             break;
         }
 
-        case (0xB):
+        case (0xC): {
+            // Cxkk - RND Vx, byte -> Set Vx = random byte AND kk.
+            // The interpreter generates a random number from 0 to 255, which is then ANDed with the value kk. The results are stored in Vx.
+            uint8_t randomNumber = rand() % 256;
+            cPtr->V[dPtr->x] = randomNumber & dPtr->kk;
             break;
+        }
 
-        case (0xC):
-            break;
+        case (0xD): {
+            // Dxyn - DRW Vx, Vy, nibble
+            // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = 1, if collision occurs, else VF = 0.
+            /*
+            The interpreter reads n bytes from memory, starting at the address stored
+            in I. These bytes are then displayed as sprites on screen at coordinates
+            (Vx, Vy). Sprites are XORed onto the existing screen. If this causes any
+            pixels to be erased, VF is set to 1, otherwise it is set to 0. If the
+            sprite is positioned so part of it is outside the coordinates of the
+            display, it wraps around to the opposite side of the screen. See
+            instruction 8xy3 for more information on XOR, and section 2.4, Display,
+            for more information on the Chip-8 screen and sprites.
+            */
 
-        case (0xD):
-            break;
+           cPtr->V[0xF] = 0;
 
-        case (0xE):
-            break;
+            // initialize screen coordinates and add a modulo operator to do a wrap around effect in case the value goes outside the visible range.
+           uint8_t xPos = cPtr->V[dPtr->x];
+           uint8_t yPos = cPtr->V[dPtr->y];
+           
+           if (xPos > 64) {
+               xPos = xPos % 64;
+            }
+            if (yPos > 32) {
+                yPos = yPos % 32;
+            }
 
-        case (0xF):
+            // reads n bytes from memory, starting at the address stored in I.
+            for (int row = 0; row < dPtr->n; row++) {
+                uint8_t spriteByte = cPtr->ram[cPtr->I + row];
+
+                for (int col = 0; col < 8; col++) {
+                    // Extract each bit from left to right
+                    uint8_t spritePixel = (spriteByte >> (7 - col)) & 0x1;
+
+                    int displayX = (xPos + col) % 64;
+                    int displayY = (yPos + row) % 32;
+
+                    int index = displayY * 64 + displayX;
+
+                    // Collision detection
+                    if (spritePixel == 1 && cPtr->display[index] == 1) {
+                        cPtr->V[0xF] = 1;
+                    }
+
+                    cPtr->display[index] ^= spritePixel;
+                }
+            }        
+            
             break;
+        }
+
+        case (0xE): {
+            switch (dPtr->kk) {
+                case 0x9E: {
+                    // Ex9E - SKP Vx: Skip next instruction if key in Vx is pressed
+                    uint8_t key = cPtr->V[dPtr->x];
+                    if (cPtr->keys[key] != 0) {
+                        cPtr->pc += 2;
+                    }
+                    break;
+                }
+                case 0xA1: {
+                    // ExA1 - SKNP Vx: Skip next instruction if key in Vx is NOT pressed
+                    uint8_t key = cPtr->V[dPtr->x];
+                    if (cPtr->keys[key] == 0) {
+                        cPtr->pc += 2;
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+
+
+        case (0xF): {
+            switch (dPtr->kk) {
+                case (0x07): {
+                    // Fx07 - LD Vx, DT
+                    // Set Vx = delay timer value.
+                    cPtr->V[dPtr->x] = cPtr->DT;
+                    break;
+                }
+                case (0x0A): {
+                    // Fx0A - LD Vx, K
+                    // Wait for a key press, store the value of the key in Vx.
+                    int keyPressed = 0;
+                    for (int i = 0; i < 16; i++) {
+                        if (cPtr->keys[i] != 0) {
+                            cPtr->V[dPtr->x] = i;
+                            keyPressed = 1;
+                            // Optionally reset the key state if the game expects it (not always necessary)
+                            // cPtr->keys[i] = 0;
+                            break;  // Store the first pressed key (adjust if you want to handle multiple)
+                        }
+                    }
+                    if (keyPressed == 0) {
+                        // No key pressed: rewind PC to re-execute this instruction next cycle
+                        cPtr->pc -= 2;
+                    }
+                    break;
+                }
+                case (0x15): {
+                    // Fx15 - LD DT, Vx
+                    // Set delay timer = Vx.
+                    cPtr->DT = cPtr->V[dPtr->x];
+                    break;
+                }
+                case (0x18): {
+                    // Fx18 - LD ST, Vx
+                    // Set sound timer = Vx.
+                    cPtr->ST = cPtr->V[dPtr->x];
+                    break;
+                }
+                case (0x1E): {
+                    // Fx1E - ADD I, Vx
+                    // Set I = I + Vx.
+                    cPtr->I += cPtr->V[dPtr->x];
+                    break;
+                }
+                case (0x29): {
+                    // Fx29 - LD F, Vx
+                    // Set I = location of sprite for digit Vx.
+                    cPtr->I = (cPtr->V[dPtr->x] & 0xF) * 5;
+                    break;
+                }
+                case (0x33): {
+                    // Fx33 - LD B, Vx
+                    // Store BCD representation of Vx in memory locations I, I+1, and I+2.
+                    uint8_t val = cPtr->V[dPtr->x];
+                    cPtr->ram[cPtr->I]     = val / 100;
+                    cPtr->ram[cPtr->I + 1] = (val / 10) % 10;
+                    cPtr->ram[cPtr->I + 2] = val % 10;
+                    break;
+                }
+                case (0x55): {
+                    // Fx55 - LD [I], Vx
+                    // Store registers V0 through Vx in memory starting at location I.
+                    for (int i = 0; i <= dPtr->x; i++) {
+                        cPtr->ram[cPtr->I + i] = cPtr->V[i];
+                    }
+                    // Note: Original CHIP-8 does not increment I (some variants do)
+                    break;
+                }
+                case (0x65): {
+                    // Fx65 - LD Vx, [I]
+                    // Read registers V0 through Vx from memory starting at location I.
+                    for (int i = 0; i <= dPtr->x; i++) {
+                        cPtr->V[i] = cPtr->ram[cPtr->I + i];
+                    }
+                    // Note: Original CHIP-8 does not increment I (some variants do)
+                    break;
+                }
+                default: {
+                    // Unknown Fxkk instruction: ignore or log
+                    printf("Unknown instruction: 0x%04X\n", (dPtr->opcode << 12) | (dPtr->x << 8) | (dPtr->y << 4) | dPtr->n);
+                    break;
+                }
+            }
+            break;
+        }
 
         default:
             break;

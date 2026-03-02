@@ -12,6 +12,10 @@ struct chip8CPU {
     uint16_t I;         // Index register (points to memory addresses)
     uint16_t stack[16]; // Return address stack
     uint8_t  sp;        // Stack pointer
+    uint8_t  display[64 * 32]; // flat framebuffer
+    uint8_t  keys[16];         // key state
+    uint8_t  DT;               // delay timer
+    uint8_t  ST;               // sound timer    
 };
 
 // Decoded Instructions Class
