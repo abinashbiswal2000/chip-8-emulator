@@ -1,0 +1,330 @@
+=====================================================================
+
+How to use git?
+First install git, gh
+Connect/authenticate your computer with github
+cycle - add , commit , push
+when doing for the first time, 
+- add your target repository and rename it
+- force rename your current branch
+- then push
+
+
+1. use git cli to authenticate your account, so that when you have to push a commit to github you do not have to deal with usernames and passwords and long tokens. In Linux, install gh, by sudo apt update, then sudo apt install gh. After installing gh, then follow these commands.
+
+Follow the Interactive Prompts
+The CLI will ask you a few questions. To keep it simple, choose these options:
+
+What account do you want to log into? GitHub.com
+
+What is your preferred protocol for Git operations? HTTPS
+
+Authenticate Git with your GitHub credentials? Yes
+
+How would you like to authenticate GitHub CLI? Login with a web browser
+
+The "One-Time Code" Step
+The terminal will give you an 8-character code (e.g., 1234-ABCD).
+
+Press Enter. It will automatically open your default web browser to GitHub's activation page.
+
+Paste the code into the browser.
+
+Click Authorize github.
+
+---------
+
+2. Establishing a connection to your github account after completing the gh installtion steps.
+    git remote add origin https://github.com/abinashbiswal2000/chip-8-emulator.git
+    git branch -M main
+    git push -u origin main
+
+----------
+
+3. Git cycle = add, commit -m "message", push
+
+----------
+
+=====================================================================
+
+Why you should use a CPU class/struct instead of defining lose variable in the main function itself?
+
+1. The "Clean Desk" Principle (Pass-by-Reference)
+As you start coding the instructions, your main function will become hundreds of lines long if you keep everything there. To keep it clean, you’ll want to move logic into functions, like void execute_opcode().
+
+With loose variables: You’d have to pass everything into every function:
+execute(virtualRam, &pc, registers, &sp, stack, &index_reg, opcode); (This gets messy fast!)
+
+With a struct: You just pass one pointer:
+execute(Chip8 *cpu, uint16_t opcode);
+
+2. The "Snapshot" (State Management)
+Later on, you might want to add a "Save State" feature. If all your components are inside one struct, saving the entire state of your console to a file is literally one line of code:
+fwrite(cpu, sizeof(Chip8), 1, save_file);
+If they are loose variables, you have to save each one individually and make sure they stay in the right order.
+
+3. Emulation Accuracy (Modular Design)
+In a real computer, the CPU and the RAM are distinct but connected. By putting everything into a Chip8 struct, you are defining the "Container" for that hardware. If you wanted to get really fancy, you could actually have two CHIP-8 instances running at the same time in the same program!
+
+=====================================================================
+
+Why the PC must be incremented immediately after the fetch function?
+
+Example
+If you are at 0x200 and you fetch a Jump to 0x300:
+
+You fetch the instruction.
+
+You increment PC to 0x202.
+
+You execute the Jump. The Jump overwrites the PC with 0x300.
+
+The Jump "wins," and the next fetch happens at 0x300.
+
+If you incremented after the jump, you would jump to 0x300 and then immediately increment to 0x302, accidentally skipping the first instruction of your destination!
+
+This approach mimics how real electrical circuits work. In a physical CPU, the Program Counter is often connected to an Incrementer (a simple circuit that adds 2) by default. The "Jump" logic is like a bypass switch: if the "Jump" signal is activated, it slams a new value into the register, effectively making the incrementer's work irrelevant for that one cycle.
+
+---
+
+One special case: The Call/Stack
+There is one subtle reason why incrementing before executing is vital for Subroutines (Functions).
+
+When you call a function (Opcode 2NNN), you need to save the "Return Address" on the stack.
+
+If you increment the PC before the call, you save the address of the next instruction.
+
+If you increment the PC after the call, you would accidentally save the address of the CALL instruction itself. When the function finished, you would return to the CALL, execute it again, and be stuck in an infinite loop!
+
+=====================================================================
+
+Components of an instruction
+
+=====================================================================
+
+Components of a CPU
+
+=====================================================================
+
+Why use this ->     uint8_t memory[4096] = {0};
+instead of this ->  unsigned char memory[4096];
+
+1. Intent and Clarity
+When a programmer sees char, they think of text (letters, strings, ASCII). When a programmer sees uint8_t, they think of raw data (bits, bytes, hardware).
+
+unsigned char says: "This is a small number or a character."
+
+uint8_t says: "This is exactly 8 bits of memory, and I am treating it like a physical byte in a machine."
+
+2. The "Guaranteed Width" Problem
+In the C standard, the size of a char, int, or long is actually not fixed.
+
+On some very old or specialized systems, a char could technically be larger than 8 bits.
+
+An int might be 16 bits on one system and 64 bits on another.
+
+When you are building an emulator, your virtual RAM must be exactly 8 bits per slot to match the CHIP-8's architecture. uint8_t stands for Unsigned INTeger of 8 bits. It is guaranteed by the compiler to be exactly that size, no matter what computer you compile it on.
+
+---
+
+What about the  = {0} part?
+The = {0} is a "Zero Initializer."
+
+In C, if you just declare uint8_t memory[4096];, the computer doesn't bother cleaning that memory for you. It might contain "garbage values" (leftovers from whatever program was using that RAM previously).
+
+Without {0}: Your virtual RAM starts filled with random noise.
+
+With {0}: Every single byte is set to 0x00 before the program starts.
+
+This is critical for emulators because many games assume the RAM is clean when they start. If your RAM has "garbage" in it, the game might crash or behave weirdly.
+
+=====================================================================
+
+Header Files
+
+What goes where?
+That's the mental test — "is this information the compiler needs, or is this actual data/logic?" Information goes in .h, data and logic go in .c.
+
+1. The Header File (.h)
+Think of this as the Public Interface or the "User Manual."
+
+Struct Definitions: As you noted, these go here so any file that includes the header knows the "shape" of the CPU.
+
+Function Prototypes: Just the signatures (e.g., void init_cpu(struct chip8CPU *cpu);). This tells the compiler, "Trust me, this function exists somewhere else; I'll show you the logic later."
+
+Macros and Constants: If you have something like #define START_ADDRESS 0x200, it goes here.
+
+Include Guards: Always keep your #ifndef / #define / #endif wrappers to prevent the file from being included twice.
+
+2. The Source File (.c)
+Think of this as the Private Implementation or the "Engine Room."
+
+Function Definitions: All the curly-brace logic { ... } goes here.
+
+Local Data: As you correctly identified, arrays with values (like fontset) live here.
+
+Static Helpers: If you write a small "helper" function that is only used inside chip8.c and shouldn't be touched by main.c, you declare it as static void my_private_helper().
+
+
+---
+
+
+Function prototypes        → .h
+Function bodies            → .c
+
+Struct definitions         → .h
+
+Arrays with data           → .c
+Global variables with data → .c
+
+#include <stdint.h> etc    → .h  (so every file that includes your header gets it automatically)
+#define constants          → .h  (so every file can see them)
+Include guards             → .h  (the #ifndef wrapper)
+
+
+
+=====================================================================
+
+**Interview Question**
+
+> In Unix systems, what is the difference between using `read()` (file descriptor–based I/O) and `fread()` (stdio stream–based I/O)?
+> Why is it dangerous to mix them on the same file?
+
+---
+
+**Answer**
+
+Both `read()` and `fread()` ultimately read raw bytes from the kernel. The key difference is that `fread()` adds a user-space buffering layer on top of the file descriptor, while `read()` interacts directly with the kernel without additional buffering.
+
+The danger in mixing them comes from desynchronization between the kernel’s file offset and the C standard library’s internal buffer.
+
+---
+
+### 1. Kernel State (The “Kernel Truth”)
+
+The kernel only tracks:
+
+* The file descriptor
+* The current file offset
+
+Every successful `read()` call advances the file offset by the number of bytes actually read.
+
+The kernel has no knowledge of:
+
+* User-space buffers
+* Whether the program has “consumed” the bytes
+* The C standard library’s internal state
+
+It only moves the offset forward.
+
+---
+
+### 2. Stdio State (The “Library Truth”)
+
+The C standard library (`fread`, `fwrite`, etc.) maintains an internal buffer in user space to reduce system calls and improve performance.
+
+When you call:
+
+```c
+fread(buf, 1, 10, fp);
+```
+
+If the internal buffer is empty, the stdio library may internally perform something like:
+
+```c
+read(fd, internal_buffer, 4096);
+```
+
+Suppose the file has 1000 bytes remaining.
+
+What happens:
+
+* The kernel reads 1000 bytes.
+* The kernel advances the file offset to 1000 (EOF).
+* The stdio buffer now holds 1000 bytes.
+* Your program receives only the first 10.
+* The remaining 990 bytes stay inside the stdio buffer.
+
+At this point:
+
+* Kernel offset = 1000
+* Stdio buffer still has 990 unread bytes
+
+---
+
+### 3. What Goes Wrong When You Mix Them
+
+Now suppose you call:
+
+```c
+read(fd, buf2, 10);
+```
+
+The kernel checks the file offset:
+
+* It is already at 1000.
+* That is EOF.
+* `read()` returns 0.
+
+But there are still 990 unread bytes sitting in the stdio buffer.
+
+They are not lost — but they are now stranded inside the stdio layer, and your direct `read()` call will never see them.
+
+This is the desynchronization problem.
+
+---
+
+### 4. The Core Issue
+
+Mixing `read()` and `fread()` on the same file descriptor is dangerous because:
+
+* The kernel maintains one file offset.
+* The stdio library maintains a separate user-space buffer.
+* Stdio may prefetch data and advance the kernel offset beyond what your program has consumed.
+* Direct `read()` calls bypass the stdio buffer entirely.
+
+The two layers become out of sync.
+
+---
+
+### 5. Clean Interview Summary
+
+* Both `read()` and `fread()` read raw bytes from the kernel.
+* `read()` is a low-level POSIX system call with no user-space buffering.
+* `fread()` is a higher-level C standard library function that adds user-space buffering.
+* Mixing them on the same file descriptor can cause offset desynchronization due to stdio’s internal buffering.
+
+That is why combining Unix I/O and standard I/O on the same file without careful synchronization leads to undefined or unexpected behavior.
+
+
+
+=====================================================================
+
+
+
+When You have multiple files you must compile like this
+gcc main.c file1.c file2.c -o main
+
+
+
+=====================================================================
+
+
+
+In C, everything is passed by value (copied). When you pass a struct or a primitive, the data itself is copied; when you pass an array or a function, they 'decay' into a pointer, and the memory address is copied instead.
+
+
+
+=====================================================================
+
+
+
+Steps In Fetch cycle
+
+
+
+1. We must know the endianness of the instruction. CHIP-8 is big-endian, meaning the most significant byte comes first in memory.
+2. We must know the size of the instruction. Every CHIP-8 instruction is exactly 2 bytes (16 bits), no exceptions.
+3. We read the raw bytes from the location the PC points to, keeping the size of the instruction in mind. We read `ram[pc]` and `ram[pc+1]`.
+4. We combine the two bytes into one 16-bit instruction. We shift the first byte into the high 8 bits and OR the second byte into the low 8 bits: `(ram[pc] << 8) | ram[pc+1]`.
+5. We increment the PC immediately by the size of one instruction. Since each instruction is 2 bytes, `pc += 2`.
